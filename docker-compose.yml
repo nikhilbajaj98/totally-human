@@ -1,0 +1,95 @@
+services:
+  # -------------------------------------------------------------------------
+  # 1. THE BRAINS (Rails API)
+  # -------------------------------------------------------------------------
+  api:
+    build: .
+    working_dir: /rails
+    command: bash -c "rm -f tmp/pids/server.pid && bundle exec rails s -b 0.0.0.0"
+    volumes:
+      - .:/rails
+    ports:
+      - "3000:3000"
+    env_file:
+      - compose.env
+    environment:
+      - MONGO_URL=${MONGO_URL:-mongodb://mongo:27017/totallyhuman_dev}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - MASK_SERVICE_URL=http://mask-service:8000
+    depends_on:
+      - mongo
+      - redis
+      - mask-service
+
+  # -------------------------------------------------------------------------
+  # 2. THE MUSCLE (Sidekiq Workers)
+  # -------------------------------------------------------------------------
+  worker:
+    build: .
+    working_dir: /rails
+    command: bundle exec sidekiq
+    volumes:
+      - .:/rails
+    env_file:
+      - compose.env
+    environment:
+      - MONGO_URL=${MONGO_URL:-mongodb://mongo:27017/totallyhuman_dev}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - MASK_SERVICE_URL=http://mask-service:8000
+    depends_on:
+      - mongo
+      - redis
+
+  # -------------------------------------------------------------------------
+  # 3. THE MASK (Python/FastAPI + curl_cffi)
+  # -------------------------------------------------------------------------
+  mask-service:
+    build:
+      context: ./mask_service # Folder where your python code lives
+      dockerfile: Dockerfile
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./mask_service:/app
+
+  # -------------------------------------------------------------------------
+  # 4. DATA INFRASTRUCTURE
+  # -------------------------------------------------------------------------
+  mongo:
+    image: mongo:6.0
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27017:27017" # Exposed for local debugging (GUI tools)
+
+  redis:
+    image: redis:alpine
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+
+  # -------------------------------------------------------------------------
+  # 5. OBSERVABILITY (The "Resume Candy")
+  # -------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana
+    volumes:
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3001:3000" # Mapped to 3001 to avoid conflict with Rails
+    depends_on:
+      - prometheus
+
+volumes:
+  mongo_data:
+  redis_data:
+  grafana_data:
