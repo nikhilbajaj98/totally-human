@@ -10,7 +10,8 @@ development:
       # Otherwise define the parameters separately (for local development)
       # This defines the name of the default database that Mongoid can connect to.
       # (required).
-      database: totally_human_development
+      # Using same database name as Docker for consistency
+      database: totallyhuman_dev
       # Provides the hosts the default client can connect to. Must be an array
       # of host:port pairs. (required)
       hosts:
