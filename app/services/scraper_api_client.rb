@@ -51,6 +51,10 @@ class ScraperApiClient
     raise TimeoutError, "Request to ScrapingBee API timed out after #{@timeout}s: #{e.message}"
   rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, SocketError => e
     raise NetworkError, "Failed to connect to ScrapingBee API at #{SCRAPER_API_URL}: #{e.message}"
+  rescue ConfigurationError => e
+    raise Error, "ScrapingBee API configuration error: #{e.message}"
+  rescue BudgetExceededError
+    raise
   rescue StandardError => e
     raise Error, "Unexpected error calling ScrapingBee API: #{e.class} - #{e.message}"
   end
@@ -86,4 +90,3 @@ class ScraperApiClient
     }
   end
 end
-

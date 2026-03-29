@@ -64,39 +64,56 @@ class ScraperStrategy
   end
 
   def fallback_to_premium(url:)
-    # Step 3: Check budget before using premium
-    check_budget!
+    reserve_premium_slot!
 
-    Rails.logger.info("ScraperStrategy: Using premium API for #{url}")
-    response = @premium_client.fetch(url: url)
+    begin
+      Rails.logger.info("ScraperStrategy: Using premium API for #{url}")
+      response = @premium_client.fetch(url: url)
 
-    # Step 4: Increment premium usage counter
-    increment_premium_usage
-
-    Rails.logger.info("ScraperStrategy: Successfully scraped #{url} using premium API")
-    response.merge(strategy: "premium")
-  rescue ScraperApiClient::Error => e
-    Rails.logger.error("ScraperStrategy: Premium API also failed: #{e.class} - #{e.message}")
-    raise Error, "Both free and premium scraping strategies failed. Last error: #{e.message}"
+      Rails.logger.info("ScraperStrategy: Successfully scraped #{url} using premium API")
+      response.merge(strategy: "premium")
+    rescue ScraperApiClient::BudgetExceededError => e
+      release_premium_slot!
+      Rails.logger.error("ScraperStrategy: Premium provider budget exceeded: #{e.message}")
+      raise BudgetExceededError, "Premium provider budget exceeded: #{e.message}"
+    rescue ScraperApiClient::Error => e
+      release_premium_slot!
+      Rails.logger.error("ScraperStrategy: Premium API also failed: #{e.class} - #{e.message}")
+      raise Error, "Both free and premium scraping strategies failed. Last error: #{e.message}"
+    end
   end
 
-  def check_budget!
-    current_usage = get_premium_usage
-    if current_usage >= @budget_limit
-      raise BudgetExceededError, "Premium API budget limit (#{@budget_limit}) exceeded. Current usage: #{current_usage}"
+  RESERVE_SLOT_SCRIPT = <<~LUA
+    local current = tonumber(redis.call('GET', KEYS[1]) or '0')
+    if current >= tonumber(ARGV[1]) then
+      return -1
     end
+    return redis.call('INCR', KEYS[1])
+  LUA
+
+  def reserve_premium_slot!
+    result = @redis.eval(RESERVE_SLOT_SCRIPT, keys: [PREMIUM_USAGE_KEY], argv: [@budget_limit])
+    if result == -1
+      usage = get_premium_usage
+      raise BudgetExceededError,
+        "Premium API budget limit (#{@budget_limit}) exceeded. Current usage: #{usage}"
+    end
+  rescue Redis::BaseError => e
+    Rails.logger.error("ScraperStrategy: Failed to reserve premium slot: #{e.message}")
+  end
+
+  def release_premium_slot!
+    @redis.decr(PREMIUM_USAGE_KEY)
+  rescue Redis::BaseError => e
+    Rails.logger.error("ScraperStrategy: Failed to release premium slot: #{e.message}")
   end
 
   def get_premium_usage
     value = @redis.get(PREMIUM_USAGE_KEY)
     value ? value.to_i : 0
-  end
-
-  def increment_premium_usage
-    @redis.incr(PREMIUM_USAGE_KEY)
   rescue Redis::BaseError => e
-    Rails.logger.error("ScraperStrategy: Failed to increment premium usage counter: #{e.message}")
-    # Don't fail the request if Redis is down, but log the error
+    Rails.logger.error("ScraperStrategy: Failed to read premium usage counter: #{e.message}")
+    0
   end
 
   def redis_client
@@ -117,6 +134,14 @@ class ScraperStrategy
     end
 
     def incr(_key)
+      1
+    end
+
+    def decr(_key)
+      0
+    end
+
+    def eval(_script, keys: [], argv: [])
       1
     end
   end
