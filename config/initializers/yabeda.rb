@@ -8,7 +8,7 @@ Yabeda.configure do
 
     histogram :scrape_duration_seconds,
               tags: %i[strategy],
-              buckets: [0.1, 0.5, 1, 2, 5, 10, 30, 60],
+              buckets: [ 0.1, 0.5, 1, 2, 5, 10, 30, 60 ],
               comment: "Duration of scrape requests in seconds"
 
     counter   :fallbacks_total,

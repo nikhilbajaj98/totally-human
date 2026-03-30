@@ -293,9 +293,13 @@ development:
 test:
   clients:
     default:
+      <% if ENV['MONGO_URL'] %>
+      uri: <%= ENV['MONGO_URL'].sub(/[^\/]+$/, 'totally_human_test') %>
+      <% else %>
       database: totally_human_test
       hosts:
         - localhost:27017
+      <% end %>
       options:
         read:
           mode: :primary

@@ -13,5 +13,3 @@ class ResponsePayload(BaseModel):
     headers: dict
     error: bool = False
     error_message: Optional[str] = None
-
-

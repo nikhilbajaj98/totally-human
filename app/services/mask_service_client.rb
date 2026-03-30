@@ -70,4 +70,3 @@ class MaskServiceClient
     raise InvalidResponseError, "Failed to parse response body: #{e.message}. Status: #{response.code}, Body: #{response.body[0..200]}"
   end
 end
-
