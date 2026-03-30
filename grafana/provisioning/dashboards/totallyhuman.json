@@ -7,7 +7,7 @@
   "links": [],
   "panels": [
     {
-      "title": "Scrape Requests / min (by Strategy)",
+      "title": "Scrape Requests / sec (by Strategy)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
       "fieldConfig": {
@@ -58,7 +58,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
-      "title": "Fallbacks / min (by Reason)",
+      "title": "Fallbacks / sec (by Reason)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
       "fieldConfig": {
@@ -86,18 +86,18 @@
       "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, rate(totallyhuman_scrape_duration_seconds_bucket[5m]))",
-          "legendFormat": "p50",
+          "expr": "histogram_quantile(0.50, sum by (le, strategy) (rate(totallyhuman_scrape_duration_seconds_bucket[5m])))",
+          "legendFormat": "p50 {{strategy}}",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, rate(totallyhuman_scrape_duration_seconds_bucket[5m]))",
-          "legendFormat": "p95",
+          "expr": "histogram_quantile(0.95, sum by (le, strategy) (rate(totallyhuman_scrape_duration_seconds_bucket[5m])))",
+          "legendFormat": "p95 {{strategy}}",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(0.99, rate(totallyhuman_scrape_duration_seconds_bucket[5m]))",
-          "legendFormat": "p99",
+          "expr": "histogram_quantile(0.99, sum by (le, strategy) (rate(totallyhuman_scrape_duration_seconds_bucket[5m])))",
+          "legendFormat": "p99 {{strategy}}",
           "refId": "C"
         }
       ],
@@ -133,7 +133,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
-      "title": "Sidekiq Jobs Processed / min",
+      "title": "Sidekiq Jobs Processed / sec",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 8, "x": 8, "y": 16 },
       "fieldConfig": {
@@ -151,7 +151,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
-      "title": "Sidekiq Failed Jobs / min",
+      "title": "Sidekiq Failed Jobs / sec",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 8, "x": 16, "y": 16 },
       "fieldConfig": {

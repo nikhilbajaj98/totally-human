@@ -39,8 +39,7 @@ class ScraperStrategy
     response = @mask_client.fetch(url: url, proxy: proxy)
 
     if should_fallback?(response)
-      reason = fallback_reason(response)
-      Yabeda.totallyhuman.fallbacks_total.increment({ reason: reason })
+      safe_increment_fallback(fallback_reason(response))
       Rails.logger.warn("ScraperStrategy: Mask service returned status #{response[:status]}, switching to premium API")
       return fallback_to_premium(url: url, start_time: start_time)
     end
@@ -49,12 +48,18 @@ class ScraperStrategy
     Rails.logger.info("ScraperStrategy: Successfully scraped #{url} using free mask-service")
     response.merge(strategy: "free")
   rescue MaskServiceClient::Error => e
-    Yabeda.totallyhuman.fallbacks_total.increment({ reason: "network_error" })
+    safe_increment_fallback("network_error")
     Rails.logger.warn("ScraperStrategy: Mask service error (#{e.class}), switching to premium API: #{e.message}")
     fallback_to_premium(url: url, start_time: start_time)
   end
 
   private
+
+  def safe_increment_fallback(reason)
+    Yabeda.totallyhuman.fallbacks_total.increment({ reason: reason })
+  rescue StandardError => e
+    Rails.logger.error("ScraperStrategy: Failed to increment fallback metric: #{e.message}")
+  end
 
   def should_fallback?(response)
     return true if response[:error]
