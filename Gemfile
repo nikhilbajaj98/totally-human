@@ -30,6 +30,12 @@ gem "thruster", require: false
 # Use Mongoid (MongoDB ODM)
 gem "mongoid", "~> 9.0"
 
+# Observability: Prometheus metrics
+gem "yabeda"
+gem "yabeda-prometheus"
+gem "yabeda-sidekiq"
+gem "yabeda-puma-plugin"
+gem "webrick"
 
 # Use Rack CORS for handling Cross-Origin Resource Sharing (CORS), making cross-origin Ajax possible
 # gem "rack-cors"

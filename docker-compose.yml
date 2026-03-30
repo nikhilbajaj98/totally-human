@@ -30,12 +30,15 @@ services:
     command: bundle exec sidekiq
     volumes:
       - .:/rails
+    ports:
+      - "9394:9394"
     env_file:
       - compose.env
     environment:
       - MONGO_URL=${MONGO_URL:-mongodb://mongo:27017/totallyhuman_dev}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - MASK_SERVICE_URL=http://mask-service:8000
+      - WORKER_METRICS_PORT=9394
     depends_on:
       - mongo
       - redis
@@ -84,8 +87,12 @@ services:
     image: grafana/grafana
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=admin
     ports:
-      - "3001:3000" # Mapped to 3001 to avoid conflict with Rails
+      - "3001:3000"
     depends_on:
       - prometheus
 

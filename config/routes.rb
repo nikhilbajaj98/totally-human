@@ -1,13 +1,9 @@
-Rails.application.routes.draw do
-  # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
+require "yabeda/prometheus"
 
-  # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
-  # Can be used by load balancers and uptime monitors to verify that the app is live.
+Rails.application.routes.draw do
   get "up" => "rails/health#show", as: :rails_health_check
 
-  # Scrape jobs API
-  resources :scrape_jobs, only: [:create, :show, :index]
+  mount Yabeda::Prometheus::Exporter => "/metrics"
 
-  # Defines the root path route ("/")
-  # root "posts#index"
+  resources :scrape_jobs, only: [:create, :show, :index]
 end
