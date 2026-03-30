@@ -33,51 +33,82 @@ class ScraperStrategy
   # @raise [BudgetExceededError] If premium budget limit is exceeded
   # @raise [Error] If both strategies fail
   def execute(url:, proxy: nil)
-    # Step 1: Try free mask-service first
+    start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
     Rails.logger.info("ScraperStrategy: Attempting free mask-service for #{url}")
     response = @mask_client.fetch(url: url, proxy: proxy)
 
-    # Step 2: Check if we should fallback
     if should_fallback?(response)
+      reason = fallback_reason(response)
+      Yabeda.totallyhuman.fallbacks_total.increment({ reason: reason })
       Rails.logger.warn("ScraperStrategy: Mask service returned status #{response[:status]}, switching to premium API")
-      return fallback_to_premium(url: url)
+      return fallback_to_premium(url: url, start_time: start_time)
     end
 
-    # Success with free service
+    record_metrics(strategy: "free", status: "done", start_time: start_time)
     Rails.logger.info("ScraperStrategy: Successfully scraped #{url} using free mask-service")
     response.merge(strategy: "free")
   rescue MaskServiceClient::Error => e
-    # Network/timeout errors from mask-service trigger fallback
+    Yabeda.totallyhuman.fallbacks_total.increment({ reason: "network_error" })
     Rails.logger.warn("ScraperStrategy: Mask service error (#{e.class}), switching to premium API: #{e.message}")
-    fallback_to_premium(url: url)
+    fallback_to_premium(url: url, start_time: start_time)
   end
 
   private
 
   def should_fallback?(response)
-    # Fallback on error responses or specific HTTP status codes
     return true if response[:error]
     return true if FALLBACK_STATUS_CODES.include?(response[:status])
-    return true if response[:status] >= 500 # Any 5xx error
+    return true if response[:status] >= 500
 
     false
   end
 
-  def fallback_to_premium(url:)
+  def fallback_reason(response)
+    return "error_flag" if response[:error]
+
+    case response[:status]
+    when 403 then "status_403"
+    when 429 then "status_429"
+    else "status_5xx"
+    end
+  end
+
+  def record_metrics(strategy:, status:, start_time:)
+    Yabeda.totallyhuman.scrape_requests_total.increment({ strategy: strategy, status: status })
+
+    if strategy == "free" && status == "done"
+      Yabeda.totallyhuman.cost_saved_total.increment({})
+    end
+
+    if start_time
+      duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
+      Yabeda.totallyhuman.scrape_duration_seconds.measure({ strategy: strategy }, duration)
+    end
+
+    Yabeda.totallyhuman.premium_budget_used.set({}, get_premium_usage)
+  rescue => e
+    Rails.logger.error("ScraperStrategy: Failed to record metrics: #{e.message}")
+  end
+
+  def fallback_to_premium(url:, start_time: nil)
     reserve_premium_slot!
 
     begin
       Rails.logger.info("ScraperStrategy: Using premium API for #{url}")
       response = @premium_client.fetch(url: url)
 
+      record_metrics(strategy: "premium", status: "done", start_time: start_time)
       Rails.logger.info("ScraperStrategy: Successfully scraped #{url} using premium API")
       response.merge(strategy: "premium")
     rescue ScraperApiClient::BudgetExceededError => e
       release_premium_slot!
+      record_metrics(strategy: "premium", status: "failed", start_time: start_time)
       Rails.logger.error("ScraperStrategy: Premium provider budget exceeded: #{e.message}")
       raise BudgetExceededError, "Premium provider budget exceeded: #{e.message}"
     rescue ScraperApiClient::Error => e
       release_premium_slot!
+      record_metrics(strategy: "premium", status: "failed", start_time: start_time)
       Rails.logger.error("ScraperStrategy: Premium API also failed: #{e.class} - #{e.message}")
       raise Error, "Both free and premium scraping strategies failed. Last error: #{e.message}"
     end

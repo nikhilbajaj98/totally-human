@@ -44,7 +44,7 @@ class MaskServiceClient
     response = http.request(request)
 
     parse_response(response)
-  rescue Net::TimeoutError, Net::OpenTimeout => e
+  rescue Net::OpenTimeout, Net::ReadTimeout => e
     raise TimeoutError, "Request to mask-service timed out after #{@timeout}s: #{e.message}"
   rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, SocketError => e
     raise NetworkError, "Failed to connect to mask-service at #{MASK_SERVICE_URL}: #{e.message}"

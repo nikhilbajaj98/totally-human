@@ -47,7 +47,7 @@ class ScraperApiClient
     response = http.request(request)
 
     parse_response(response)
-  rescue Net::TimeoutError, Net::OpenTimeout => e
+  rescue Net::OpenTimeout, Net::ReadTimeout => e
     raise TimeoutError, "Request to ScrapingBee API timed out after #{@timeout}s: #{e.message}"
   rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, SocketError => e
     raise NetworkError, "Failed to connect to ScrapingBee API at #{SCRAPER_API_URL}: #{e.message}"
