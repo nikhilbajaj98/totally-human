@@ -57,7 +57,11 @@ def request(payload: RequestPayload):
     try:
         # Validate URL
         parsed = urlparse(payload.url)
-        if parsed.scheme not in {"http", "https"} or not parsed.netloc or not parsed.hostname:
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.netloc
+            or not parsed.hostname
+        ):
             return JSONResponse(
                 status_code=400,
                 content={
@@ -73,7 +77,10 @@ def request(payload: RequestPayload):
         proxies = None
         if payload.proxy:
             proxy_parsed = urlparse(payload.proxy)
-            if proxy_parsed.scheme not in {"http", "https", "socks5", "socks5h"} or not proxy_parsed.netloc:
+            if (
+                proxy_parsed.scheme not in {"http", "https", "socks5", "socks5h"}
+                or not proxy_parsed.netloc
+            ):
                 return JSONResponse(
                     status_code=400,
                     content={
@@ -86,7 +93,9 @@ def request(payload: RequestPayload):
                 )
             proxy_host = proxy_parsed.hostname
             proxy_port = f":{proxy_parsed.port}" if proxy_parsed.port else ""
-            logger.info("Using proxy: %s://%s%s", proxy_parsed.scheme, proxy_host, proxy_port)
+            logger.info(
+                "Using proxy: %s://%s%s", proxy_parsed.scheme, proxy_host, proxy_port
+            )
             proxies = {
                 "http": payload.proxy,
                 "https": payload.proxy,

@@ -128,7 +128,7 @@ class ScraperStrategy
   LUA
 
   def reserve_premium_slot!
-    result = @redis.eval(RESERVE_SLOT_SCRIPT, keys: [PREMIUM_USAGE_KEY], argv: [@budget_limit])
+    result = @redis.eval(RESERVE_SLOT_SCRIPT, keys: [ PREMIUM_USAGE_KEY ], argv: [ @budget_limit ])
     if result == -1
       usage = get_premium_usage
       raise BudgetExceededError,

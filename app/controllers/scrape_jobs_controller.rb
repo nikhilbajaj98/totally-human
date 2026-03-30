@@ -2,7 +2,6 @@
 
 # API controller for creating and querying scrape jobs
 class ScrapeJobsController < ApplicationController
-
   # Create a new scrape job
   # POST /scrape_jobs
   # Body: { "url": "https://example.com" }
@@ -12,7 +11,7 @@ class ScrapeJobsController < ApplicationController
     if job.save
       # Enqueue the job for processing
       ScrapeWorker.perform_async(job.id.to_s)
-      
+
       render json: {
         id: job.id.to_s,
         url: job.url,
@@ -28,7 +27,7 @@ class ScrapeJobsController < ApplicationController
   # GET /scrape_jobs/:id
   def show
     job = ScrapeJob.find(params[:id])
-    
+
     render json: {
       id: job.id.to_s,
       url: job.url,
@@ -45,7 +44,7 @@ class ScrapeJobsController < ApplicationController
   # GET /scrape_jobs
   def index
     jobs = ScrapeJob.all.order(created_at: :desc).limit(100)
-    
+
     render json: jobs.map { |job|
       {
         id: job.id.to_s,
@@ -57,4 +56,3 @@ class ScrapeJobsController < ApplicationController
     }
   end
 end
-

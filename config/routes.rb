@@ -5,5 +5,5 @@ Rails.application.routes.draw do
 
   mount Yabeda::Prometheus::Exporter => "/metrics"
 
-  resources :scrape_jobs, only: [:create, :show, :index]
+  resources :scrape_jobs, only: [ :create, :show, :index ]
 end

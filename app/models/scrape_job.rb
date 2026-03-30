@@ -17,7 +17,7 @@ class ScrapeJob
 
   # Validations
   validates :url, presence: true, format: { with: URI::DEFAULT_PARSER.make_regexp(%w[http https]) }
-  validates :status, inclusion: { in: [STATUS_PENDING, STATUS_DONE, STATUS_FAILED] }
+  validates :status, inclusion: { in: [ STATUS_PENDING, STATUS_DONE, STATUS_FAILED ] }
 
   # Scopes
   scope :pending, -> { where(status: STATUS_PENDING) }
@@ -37,4 +37,3 @@ class ScrapeJob
     )
   end
 end
-
