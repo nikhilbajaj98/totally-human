@@ -27,5 +27,11 @@ RSpec.describe Parsers::BaseParser do
 
       expect(result[:test]).to be true
     end
+
+    it "re-raises RobotDetectedError so workers can mark jobs failed" do
+      allow(parser).to receive(:parse).and_raise(Parsers::RobotDetectedError, "blocked")
+
+      expect { parser.safe_parse("<html></html>") }.to raise_error(Parsers::RobotDetectedError, "blocked")
+    end
   end
 end

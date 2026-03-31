@@ -10,14 +10,15 @@ module Parsers
 
     def parse(html)
       document = doc(html)
+      body_text = extract_body(document)
 
       {
         title: extract_title(document),
         author: extract_author(document),
         published_date: extract_date(document),
         description: extract_description(document),
-        body_text: extract_body(document),
-        word_count: extract_body(document)&.split(/\s+/)&.size || 0,
+        body_text: body_text,
+        word_count: body_text.present? ? body_text.split(/\s+/).reject(&:empty?).size : 0,
         language: extract_language(document)
       }
     end
@@ -61,25 +62,23 @@ module Parsers
     end
 
     def extract_body(document)
-      @body_text ||= begin
-        article_node = document.at_css("article") ||
-                       document.at_css("[role='main']") ||
-                       document.at_css("main") ||
-                       document.at_css(".post-content") ||
-                       document.at_css(".entry-content") ||
-                       document.at_css(".article-body") ||
-                       document.at_css("#content") ||
-                       document.at_css("body")
+      article_node = document.at_css("article") ||
+                     document.at_css("[role='main']") ||
+                     document.at_css("main") ||
+                     document.at_css(".post-content") ||
+                     document.at_css(".entry-content") ||
+                     document.at_css(".article-body") ||
+                     document.at_css("#content") ||
+                     document.at_css("body")
 
-        return nil unless article_node
+      return nil unless article_node
 
-        article_node.css("script, style, nav, header, footer, aside, iframe, noscript").each(&:remove)
+      article_node.css("script, style, nav, header, footer, aside, iframe, noscript").each(&:remove)
 
-        paragraphs = article_node.css("p").map { |p| clean_text(text(p)) }.compact
-        body = paragraphs.join("\n\n")
-        body = body[0, MAX_BODY_CHARS] if body.length > MAX_BODY_CHARS
-        body.presence
-      end
+      paragraphs = article_node.css("p").map { |p| clean_text(text(p)) }.compact
+      body = paragraphs.join("\n\n")
+      body = body[0, MAX_BODY_CHARS] if body.length > MAX_BODY_CHARS
+      body.presence
     end
 
     def extract_language(document)
@@ -97,12 +96,46 @@ module Parsers
     def extract_ld_json_field(document, field)
       document.css("script[type='application/ld+json']").each do |script|
         data = JSON.parse(text(script) || "")
-        value = data[field]
-        return value.is_a?(Hash) ? value["name"] : value.to_s if value.present?
+        value = ld_json_extract_field(data, field)
+        next if value.nil?
+
+        formatted =
+          case value
+          when Hash
+            value["name"].presence || value.to_s
+          else
+            value.to_s
+          end
+        return formatted if formatted.present?
       rescue JSON::ParserError
         next
       end
       nil
+    end
+
+    def ld_json_extract_field(node, field)
+      case node
+      when Hash
+        v = node[field]
+        return v if v.present?
+
+        graph = node["@graph"]
+        if graph.is_a?(Array)
+          graph.each do |item|
+            found = ld_json_extract_field(item, field)
+            return found if found.present?
+          end
+        end
+        nil
+      when Array
+        node.each do |item|
+          found = ld_json_extract_field(item, field)
+          return found if found.present?
+        end
+        nil
+      else
+        nil
+      end
     end
 
     def extract_byline(document)

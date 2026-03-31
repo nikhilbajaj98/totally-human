@@ -45,11 +45,16 @@ RSpec.describe Parsers::AmazonSearchParser do
   end
 
   describe "robot / captcha pages" do
-    it "returns robot_check with empty products" do
+    it "raises RobotDetectedError so callers can fail the job" do
       page = "<html><body>Sorry! We just need to make sure you're not a robot</body></html>"
-      result = parser.parse(page)
-      expect(result[:robot_check]).to be true
-      expect(result[:products]).to eq([])
+      expect { parser.parse(page) }.to raise_error(Parsers::RobotDetectedError, /robot/i)
+    end
+  end
+
+  describe "#absolutize_amazon_url" do
+    it "uses the source URL host for relative paths" do
+      uk = described_class.new(source_url: "https://www.amazon.co.uk/s?k=test")
+      expect(uk.send(:absolutize_amazon_url, "/dp/B012345678")).to eq("https://www.amazon.co.uk/dp/B012345678")
     end
   end
 

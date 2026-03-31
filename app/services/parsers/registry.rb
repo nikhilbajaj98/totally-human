@@ -28,10 +28,10 @@ module Parsers
 
     def self.for_url(url)
       PARSERS.each do |pattern, parser_class|
-        return parser_class.new if url.match?(pattern)
+        return parser_class.new(source_url: url) if url.match?(pattern)
       end
 
-      ArticleParser.new
+      ArticleParser.new(source_url: url)
     end
   end
 end

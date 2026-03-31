@@ -19,7 +19,7 @@ module Parsers
     ].freeze
 
     def parse(html)
-      return search_error_result(:robot_check) if robot_page?(html)
+      raise RobotDetectedError, "Amazon robot / CAPTCHA page detected" if robot_page?(html)
 
       document = doc(html)
 
@@ -34,15 +34,6 @@ module Parsers
     def robot_page?(raw)
       s = raw.to_s
       CAPTCHA_PATTERNS.any? { |p| s.match?(p) }
-    end
-
-    def search_error_result(reason)
-      {
-        robot_check: true,
-        reason: reason,
-        products: [],
-        search_metadata: {}
-      }
     end
 
     def extract_products(document)
@@ -166,10 +157,20 @@ module Parsers
     end
 
     def absolutize_amazon_url(href)
-      return href if href.start_with?("http")
-      return "https://www.amazon.com#{href}" if href.start_with?("/")
+      return href if href.blank? || href.start_with?("http")
+      return href unless href.start_with?("/")
 
-      href
+      origin = amazon_request_origin || "https://www.amazon.com"
+      "#{origin}#{href}"
+    end
+
+    def amazon_request_origin
+      return nil if source_url.blank?
+
+      uri = URI.parse(source_url)
+      "#{uri.scheme}://#{uri.host}"
+    rescue URI::InvalidURIError
+      nil
     end
   end
 end

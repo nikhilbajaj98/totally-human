@@ -61,6 +61,11 @@ RSpec.describe Parsers::AmazonProductParser do
       expect(result[:review_count]).to eq(99)
     end
 
+    it "parses whole-number ratings from title and star strings" do
+      expect(parser.send(:parse_rating_from_string, "4 out of 5 stars")).to eq(4.0)
+      expect(parser.send(:parse_rating_from_string, "3 stars")).to eq(3.0)
+    end
+
     it "builds price from whole + fraction when offscreen is absent" do
       fragment = <<~HTML
         <html><body>

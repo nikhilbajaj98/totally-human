@@ -4,6 +4,7 @@ module Parsers
   # Extracts story listings from Hacker News front page (news.ycombinator.com).
   # Handles the two-row-per-story table layout: .athing (title row) + .subtext (meta row).
   class HackerNewsParser < BaseParser
+    HN_ORIGIN = "https://news.ycombinator.com".freeze
     def parse(html)
       document = doc(html)
 
@@ -37,6 +38,7 @@ module Parsers
 
       title = text(link)
       url = link["href"]
+      url = normalize_hacker_news_url(url)
 
       site_node = title_cell.at_css("span.sitestr")
       site = text(site_node)
@@ -54,6 +56,13 @@ module Parsers
         age: meta[:age],
         hn_id: title_row["id"]
       }
+    end
+
+    def normalize_hacker_news_url(href)
+      return href if href.blank?
+      return href if href.start_with?("http://", "https://")
+
+      "#{HN_ORIGIN}/#{href.delete_prefix("/")}"
     end
 
     def extract_meta(meta_row)

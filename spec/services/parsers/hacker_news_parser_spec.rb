@@ -21,6 +21,30 @@ RSpec.describe Parsers::HackerNewsParser do
       expect(result[:stories].first[:url]).to eq("https://example.com/article-one")
     end
 
+    it "absolutizes internal item links" do
+      ask = <<~HTML
+        <table>
+          <tr class="athing" id="99">
+            <td class="title"><span class="titleline"><a href="item?id=99">Ask HN: Test?</a></span></td>
+          </tr>
+        </table>
+      HTML
+      out = parser.parse(ask)
+      expect(out[:stories].first[:url]).to eq("https://news.ycombinator.com/item?id=99")
+    end
+
+    it "absolutizes leading-slash item links" do
+      ask = <<~HTML
+        <table>
+          <tr class="athing" id="100">
+            <td class="title"><span class="titleline"><a href="/item?id=100">Show HN</a></span></td>
+          </tr>
+        </table>
+      HTML
+      out = parser.parse(ask)
+      expect(out[:stories].first[:url]).to eq("https://news.ycombinator.com/item?id=100")
+    end
+
     it "extracts the site domain" do
       expect(result[:stories].first[:site]).to eq("example.com")
     end

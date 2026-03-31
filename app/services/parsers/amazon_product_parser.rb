@@ -5,6 +5,7 @@ module Parsers
   # Selectors follow common Amazon DOM patterns; live pages vary by A/B tests and locale.
   class AmazonProductParser < BaseParser
     ASIN_PATTERN = /\A(?<asin>[A-Z0-9]{10})\z/.freeze
+    RATING_NUM = /(\d+(?:[.,]\d+)?)/.freeze
 
     def parse(html)
       document = doc(html)
@@ -79,13 +80,9 @@ module Parsers
     def parse_rating_from_string(str)
       return nil if str.blank?
 
-      m = str.match(/(\d+[.,]\d+)\s*out of\s*5/i) || str.match(/(\d+[.,]\d+)\s*stars?/i)
-      return m[1].tr(",", ".").to_f if m
-
-      m2 = str.match(/\b([5])\s*out of\s*5/i)
-      return m2[1].to_f if m2
-
-      nil
+      m = str.match(/#{RATING_NUM.source}\s*out\s*of\s*5(?:\s*stars?)?/i) ||
+          str.match(/#{RATING_NUM.source}\s+stars?\b/i)
+      m ? m[1].tr(",", ".").to_f : nil
     end
 
     def extract_review_count(document)
