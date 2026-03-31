@@ -30,6 +30,9 @@ gem "thruster", require: false
 # Use Mongoid (MongoDB ODM)
 gem "mongoid", "~> 9.0"
 
+# HTML parsing for structured data extraction
+gem "nokogiri"
+
 # Observability: Prometheus metrics
 gem "yabeda"
 gem "yabeda-prometheus"

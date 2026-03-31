@@ -15,10 +15,15 @@ class ScrapeWorker
     Rails.logger.info("Processing scrape job #{job_id} for URL: #{job.url}")
 
     response = strategy.execute(url: job.url)
-    job.mark_done!(response)
+
+    parser = Parsers::Registry.for_url(job.url)
+    parsed = parser.safe_parse(response[:html] || "")
+    parser_name = parser.class.name.demodulize
+
+    job.mark_done!(response, parsed_data: parsed, parser_used: parser_name)
 
     strategy_used = response[:strategy] || "unknown"
-    Rails.logger.info("Successfully scraped #{job.url}. Status: #{response[:status]}, Strategy: #{strategy_used}")
+    Rails.logger.info("Successfully scraped #{job.url}. Status: #{response[:status]}, Strategy: #{strategy_used}, Parser: #{parser_name}")
   rescue Mongoid::Errors::DocumentNotFound => e
     Rails.logger.error("ScrapeJob #{job_id} not found: #{e.message}")
     raise
