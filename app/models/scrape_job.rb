@@ -22,6 +22,7 @@ class ScrapeJob
   field :domain, type: String
   field :failure_count, type: Integer, default: 0
   field :last_error, type: String
+  field :demo_seed, type: Boolean, default: false
 
   validates :url, presence: true, format: { with: URI::DEFAULT_PARSER.make_regexp(%w[http https]) }
   validates :status, inclusion: { in: [ STATUS_PENDING, STATUS_DONE, STATUS_FAILED, STATUS_DEAD ] }

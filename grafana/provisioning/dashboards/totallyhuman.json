@@ -125,7 +125,7 @@
       "options": {},
       "targets": [
         {
-          "expr": "totallyhuman_premium_budget_used",
+          "expr": "totallyhuman_premium_budget_used{job=\"worker\"}",
           "legendFormat": "Usage",
           "refId": "A"
         }
@@ -167,12 +167,133 @@
         }
       ],
       "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Scrape requests (dashboard time range)",
+      "description": "Increase in totallyhuman_scrape_requests_total over the selected range (worker counters).",
+      "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 24 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "blue", "value": null }, { "color": "green", "value": 1 }] }
+        }
+      },
+      "options": { "colorMode": "value", "graphMode": "none", "textMode": "value_and_name" },
+      "targets": [
+        {
+          "expr": "sum(increase(totallyhuman_scrape_requests_total[$__range]))",
+          "legendFormat": "scrapes",
+          "refId": "A"
+        }
+      ],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Fallbacks (dashboard time range)",
+      "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 24 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "yellow", "value": null }] }
+        }
+      },
+      "options": { "colorMode": "value", "graphMode": "none", "textMode": "value_and_name" },
+      "targets": [
+        {
+          "expr": "sum(increase(totallyhuman_fallbacks_total[$__range]))",
+          "legendFormat": "fallbacks",
+          "refId": "A"
+        }
+      ],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Cost saved (current counter)",
+      "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 24 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }] }
+        }
+      },
+      "options": { "colorMode": "value", "graphMode": "none", "textMode": "value_and_name" },
+      "targets": [
+        {
+          "expr": "totallyhuman_cost_saved_total",
+          "legendFormat": "saved",
+          "refId": "A"
+        }
+      ],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Premium usage (gauge value)",
+      "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 24 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 50 },
+              { "color": "red", "value": 200 }
+            ]
+          }
+        }
+      },
+      "options": { "colorMode": "value", "graphMode": "none", "textMode": "value_and_name" },
+      "targets": [
+        {
+          "expr": "totallyhuman_premium_budget_used{job=\"worker\"}",
+          "legendFormat": "premium calls",
+          "refId": "A"
+        }
+      ],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Total scrape throughput (all strategies)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 29 },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "reqps" },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(rate(totallyhuman_scrape_requests_total[1m]))",
+          "legendFormat": "total req/s",
+          "refId": "A"
+        }
+      ],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "By strategy × status (instant)",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 29 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": { "showHeader": true },
+      "targets": [
+        {
+          "expr": "sum by (strategy, status) (totallyhuman_scrape_requests_total)",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     }
   ],
   "schemaVersion": 39,
   "tags": ["totallyhuman", "scraping"],
   "templating": { "list": [] },
-  "time": { "from": "now-15m", "to": "now" },
+  "time": { "from": "now-1h", "to": "now" },
   "timepicker": {},
   "timezone": "browser",
   "title": "TotallyHuman - Scraping Dashboard",
