@@ -2,7 +2,12 @@
 
 module Parsers
   class GoogleSearchParser < BaseParser
-    CAPTCHA_INDICATORS = [ "unusual traffic", "captcha", "recaptcha", "sorry/index" ].freeze
+    CAPTCHA_PATTERNS = [
+      %r{<form[^>]+action="[^"]*(?:/sorry/index|CaptchaRedirect)}i,
+      %r{<script[^>]+src="[^"]*google\.com/recaptcha/}i,
+      /our systems have detected unusual traffic/i,
+      %r{id=["']captcha-form["']}i
+    ].freeze
 
     def parse(html)
       return { captcha: true, organic_results: [], related_searches: [], search_metadata: {} } if captcha?(html)
@@ -19,8 +24,8 @@ module Parsers
     private
 
     def captcha?(html)
-      lower = html.to_s.downcase
-      CAPTCHA_INDICATORS.any? { |indicator| lower.include?(indicator) }
+      raw = html.to_s
+      CAPTCHA_PATTERNS.any? { |pattern| raw.match?(pattern) }
     end
 
     def extract_organic_results(document)
@@ -30,9 +35,14 @@ module Parsers
         title_node = result_node.at_css("h3")
         next unless title_node
 
-        link_node = result_node.at_css("a[href]")
+        link_node = title_node.at_css("a[href]") ||
+                    title_node.ancestors("a[href]").first ||
+                    result_node.at_css("a[href]")
         href = link_node&.[]("href")
         next if href.nil? || href.start_with?("#") || href.start_with?("/search")
+
+        href = normalize_google_url(href)
+        next unless href
 
         snippet = extract_snippet(result_node)
         displayed_link = extract_displayed_link(result_node)
@@ -69,6 +79,16 @@ module Parsers
     def extract_displayed_link(result_node)
       cite_node = result_node.at_css("cite")
       text(cite_node)
+    end
+
+    def normalize_google_url(href)
+      return href unless href.start_with?("/url?")
+
+      params = URI.decode_www_form(URI.parse(href).query || "")
+      destination = params.assoc("q")&.last || params.assoc("url")&.last
+      destination.presence
+    rescue URI::InvalidURIError
+      nil
     end
 
     def extract_related_searches(document)
