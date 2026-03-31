@@ -17,6 +17,9 @@ FactoryBot.define do
           strategy: "free"
         }
       end
+      parsed_data { { raw_html: "<html><body>Hello</body></html>" } }
+      parser_used { "RawParser" }
+      domain { "example.com" }
     end
 
     trait :failed do

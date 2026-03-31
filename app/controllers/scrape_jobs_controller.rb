@@ -25,17 +25,31 @@ class ScrapeJobsController < ApplicationController
 
   # Get job status
   # GET /scrape_jobs/:id
+  # Optional: ?format_type=parsed to return only structured data
   def show
     job = ScrapeJob.find(params[:id])
 
-    render json: {
-      id: job.id.to_s,
-      url: job.url,
-      status: job.status,
-      response_body: job.response_body,
-      created_at: job.created_at,
-      updated_at: job.updated_at
-    }
+    if params[:format_type] == "parsed"
+      render json: {
+        id: job.id.to_s,
+        url: job.url,
+        status: job.status,
+        parsed_data: job.parsed_data,
+        parser_used: job.parser_used
+      }
+    else
+      render json: {
+        id: job.id.to_s,
+        url: job.url,
+        status: job.status,
+        response_body: job.response_body,
+        parsed_data: job.parsed_data,
+        parser_used: job.parser_used,
+        domain: job.domain,
+        created_at: job.created_at,
+        updated_at: job.updated_at
+      }
+    end
   rescue Mongoid::Errors::DocumentNotFound
     render json: { error: "Job not found" }, status: :not_found
   end

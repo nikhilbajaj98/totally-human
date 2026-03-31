@@ -385,6 +385,7 @@ DEPENDENCIES
   factory_bot_rails
   kamal
   mongoid (~> 9.0)
+  nokogiri
   puma (>= 5.0)
   rails (~> 8.0.1)
   redis (>= 4.0.1)

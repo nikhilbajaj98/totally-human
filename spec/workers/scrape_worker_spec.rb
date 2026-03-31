@@ -25,6 +25,28 @@ RSpec.describe ScrapeWorker do
       expect(job.response_body["strategy"]).to eq("free")
     end
 
+    it "stores parsed_data and parser_used from the parser" do
+      job = create(:scrape_job, url: "https://example.com")
+      allow(strategy).to receive(:execute).and_return(success_response)
+
+      described_class.new.perform(job.id.to_s)
+
+      job.reload
+      expect(job.parser_used).to eq("RawParser")
+      expect(job.parsed_data).to have_key("raw_html")
+      expect(job.domain).to eq("example.com")
+    end
+
+    it "uses GoogleSearchParser for Google search URLs" do
+      job = create(:scrape_job, url: "https://www.google.com/search?q=test")
+      allow(strategy).to receive(:execute).and_return(success_response)
+
+      described_class.new.perform(job.id.to_s)
+
+      job.reload
+      expect(job.parser_used).to eq("GoogleSearchParser")
+    end
+
     it "calls strategy.execute with the job URL" do
       job = create(:scrape_job, url: "https://test.com")
       allow(strategy).to receive(:execute).and_return(success_response)

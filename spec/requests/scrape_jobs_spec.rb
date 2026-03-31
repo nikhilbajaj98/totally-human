@@ -40,7 +40,7 @@ RSpec.describe "ScrapeJobs API", type: :request do
   end
 
   describe "GET /scrape_jobs/:id" do
-    it "returns the job with full details" do
+    it "returns the job with full details including parsed_data" do
       job = create(:scrape_job, :done)
 
       get "/scrape_jobs/#{job.id}"
@@ -50,6 +50,22 @@ RSpec.describe "ScrapeJobs API", type: :request do
       expect(body["id"]).to eq(job.id.to_s)
       expect(body["status"]).to eq("done")
       expect(body["response_body"]).to be_present
+      expect(body["parsed_data"]).to be_present
+      expect(body["parser_used"]).to eq("RawParser")
+      expect(body["domain"]).to eq("example.com")
+    end
+
+    it "returns only parsed data when format_type=parsed" do
+      job = create(:scrape_job, :done)
+
+      get "/scrape_jobs/#{job.id}", params: { format_type: "parsed" }
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["parsed_data"]).to be_present
+      expect(body["parser_used"]).to eq("RawParser")
+      expect(body).not_to have_key("response_body")
+      expect(body).not_to have_key("domain")
     end
 
     it "returns 404 for a non-existent job" do
