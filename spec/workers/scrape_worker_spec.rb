@@ -4,6 +4,7 @@ require "rails_helper"
 
 RSpec.describe ScrapeWorker do
   let(:strategy) { instance_double(ScraperStrategy) }
+  let(:rate_limiter) { instance_double(RateLimiter) }
 
   let(:success_response) do
     { status: 200, html: "<html>OK</html>", headers: {}, error: false, error_message: nil, strategy: "free" }
@@ -11,6 +12,9 @@ RSpec.describe ScrapeWorker do
 
   before do
     allow(ScraperStrategy).to receive(:new).and_return(strategy)
+    allow(RateLimiter).to receive(:new).and_return(rate_limiter)
+    allow(rate_limiter).to receive(:acquire!).and_return(true)
+    allow(rate_limiter).to receive(:release!)
   end
 
   describe "#perform" do
@@ -32,8 +36,7 @@ RSpec.describe ScrapeWorker do
       described_class.new.perform(job.id.to_s)
 
       job.reload
-      expect(job.parser_used).to eq("RawParser")
-      expect(job.parsed_data).to have_key("raw_html")
+      expect(job.parser_used).to eq("ArticleParser")
       expect(job.domain).to eq("example.com")
     end
 
@@ -45,6 +48,39 @@ RSpec.describe ScrapeWorker do
 
       job.reload
       expect(job.parser_used).to eq("GoogleSearchParser")
+    end
+
+    it "uses HackerNewsParser for HN URLs" do
+      job = create(:scrape_job, url: "https://news.ycombinator.com/")
+      allow(strategy).to receive(:execute).and_return(success_response)
+
+      described_class.new.perform(job.id.to_s)
+
+      job.reload
+      expect(job.parser_used).to eq("HackerNewsParser")
+    end
+
+    it "uses AmazonProductParser for Amazon PDP URLs" do
+      job = create(:scrape_job, url: "https://www.amazon.com/Some-Title/dp/B012345678")
+      allow(strategy).to receive(:execute).and_return(success_response)
+
+      described_class.new.perform(job.id.to_s)
+
+      job.reload
+      expect(job.parser_used).to eq("AmazonProductParser")
+    end
+
+    it "uses AmazonSearchParser for Amazon search URLs" do
+      job = create(
+        :scrape_job,
+        url: "https://www.amazon.com/s?k=Air+fryer&crid=1M8JXCR6QAQ8L"
+      )
+      allow(strategy).to receive(:execute).and_return(success_response)
+
+      described_class.new.perform(job.id.to_s)
+
+      job.reload
+      expect(job.parser_used).to eq("AmazonSearchParser")
     end
 
     it "calls strategy.execute with the job URL" do
@@ -66,6 +102,8 @@ RSpec.describe ScrapeWorker do
       job.reload
       expect(job.status).to eq("failed")
       expect(job.response_body["error_message"]).to eq("Both failed")
+      expect(job.failure_count).to eq(1)
+      expect(job.last_error).to eq("Both failed")
     end
 
     it "marks the job as failed on budget exceeded and re-raises" do
@@ -77,11 +115,69 @@ RSpec.describe ScrapeWorker do
 
       job.reload
       expect(job.status).to eq("failed")
+      expect(job.failure_count).to eq(1)
     end
 
     it "raises Mongoid::Errors::DocumentNotFound for missing job" do
       expect { described_class.new.perform("000000000000000000000000") }
         .to raise_error(Mongoid::Errors::DocumentNotFound)
+    end
+
+    it "increments failure_count on each failure" do
+      job = create(:scrape_job, url: "https://example.com")
+      allow(strategy).to receive(:execute).and_raise(ScraperStrategy::Error, "fail")
+
+      2.times do
+        expect { described_class.new.perform(job.id.to_s) }
+          .to raise_error(ScraperStrategy::Error)
+      end
+
+      job.reload
+      expect(job.failure_count).to eq(2)
+    end
+  end
+
+  describe "rate limiting" do
+    it "acquires and releases the rate limiter slot" do
+      job = create(:scrape_job, url: "https://example.com")
+      allow(strategy).to receive(:execute).and_return(success_response)
+
+      described_class.new.perform(job.id.to_s)
+
+      expect(rate_limiter).to have_received(:acquire!).with("example.com")
+      expect(rate_limiter).to have_received(:release!).with("example.com")
+    end
+
+    it "re-enqueues when rate limit is exceeded" do
+      job = create(:scrape_job, url: "https://example.com")
+      allow(rate_limiter).to receive(:acquire!).and_return(false)
+      allow(described_class).to receive(:perform_in)
+      allow(strategy).to receive(:execute)
+
+      described_class.new.perform(job.id.to_s)
+
+      expect(described_class).to have_received(:perform_in).with(kind_of(Numeric), job.id.to_s)
+      expect(strategy).not_to have_received(:execute)
+    end
+
+    it "releases the slot even when an error occurs" do
+      job = create(:scrape_job, url: "https://example.com")
+      allow(strategy).to receive(:execute).and_raise(ScraperStrategy::Error, "boom")
+
+      expect { described_class.new.perform(job.id.to_s) }
+        .to raise_error(ScraperStrategy::Error)
+
+      expect(rate_limiter).to have_received(:release!).with("example.com")
+    end
+
+    it "does not release the slot when not acquired (re-enqueue path)" do
+      job = create(:scrape_job, url: "https://example.com")
+      allow(rate_limiter).to receive(:acquire!).and_return(false)
+      allow(described_class).to receive(:perform_in)
+
+      described_class.new.perform(job.id.to_s)
+
+      expect(rate_limiter).not_to have_received(:release!)
     end
   end
 end

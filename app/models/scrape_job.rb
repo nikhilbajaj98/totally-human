@@ -10,6 +10,9 @@ class ScrapeJob
   STATUS_PENDING = "pending"
   STATUS_DONE = "done"
   STATUS_FAILED = "failed"
+  STATUS_DEAD = "dead"
+
+  MAX_RETRIES = 5
 
   field :url, type: String
   field :status, type: String, default: STATUS_PENDING
@@ -17,17 +20,18 @@ class ScrapeJob
   field :parsed_data, type: Hash, default: {}
   field :parser_used, type: String
   field :domain, type: String
+  field :failure_count, type: Integer, default: 0
+  field :last_error, type: String
 
-  # Validations
   validates :url, presence: true, format: { with: URI::DEFAULT_PARSER.make_regexp(%w[http https]) }
-  validates :status, inclusion: { in: [ STATUS_PENDING, STATUS_DONE, STATUS_FAILED ] }
+  validates :status, inclusion: { in: [ STATUS_PENDING, STATUS_DONE, STATUS_FAILED, STATUS_DEAD ] }
 
-  # Scopes
   scope :pending, -> { where(status: STATUS_PENDING) }
   scope :done, -> { where(status: STATUS_DONE) }
   scope :failed, -> { where(status: STATUS_FAILED) }
+  scope :dead, -> { where(status: STATUS_DEAD) }
+  scope :by_status, ->(status) { where(status: status) if status.present? }
 
-  # Mark job as completed with response data and optional parsed output
   def mark_done!(response_body, parsed_data: {}, parser_used: nil)
     update!(
       status: STATUS_DONE,
@@ -38,11 +42,25 @@ class ScrapeJob
     )
   end
 
-  # Mark job as failed with optional error message
   def mark_failed!(error_message = nil)
+    self.failure_count = (failure_count || 0) + 1
+    safe_body = ScrapePayload.utf8({ error: true, error_message: error_message })
+    safe_err = safe_body[:error_message]
     update!(
       status: STATUS_FAILED,
-      response_body: { error: true, error_message: error_message }
+      response_body: safe_body,
+      failure_count: self.failure_count,
+      last_error: safe_err,
+      parsed_data: {},
+      parser_used: nil
+    )
+  end
+
+  # Called by the Sidekiq death handler when all retries are exhausted
+  def mark_dead!(error_message = nil)
+    update!(
+      status: STATUS_DEAD,
+      last_error: error_message || last_error
     )
   end
 

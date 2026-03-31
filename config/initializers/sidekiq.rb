@@ -5,6 +5,20 @@ redis_url = ENV.fetch("REDIS_URL") { "redis://localhost:6379/0" }
 Sidekiq.configure_server do |config|
   config.redis = { url: redis_url }
 
+  # Dead letter queue: when all Sidekiq retries are exhausted, mark the job as permanently dead.
+  config.death_handlers << ->(job, _exception) do
+    job_id = job["args"]&.first
+    if job_id
+      scrape_job = ScrapeJob.find(job_id)
+      scrape_job.mark_dead!("All #{ScrapeJob::MAX_RETRIES} retries exhausted: #{job["error_message"]}")
+      Rails.logger.error("ScrapeJob #{job_id} moved to dead letter queue after all retries exhausted")
+    end
+  rescue Mongoid::Errors::DocumentNotFound
+    Rails.logger.error("Death handler: ScrapeJob #{job_id} not found")
+  rescue StandardError => e
+    Rails.logger.error("Death handler error: #{e.class} - #{e.message}")
+  end
+
   config.on(:startup) do
     require "webrick"
     require "rackup/handler/webrick"

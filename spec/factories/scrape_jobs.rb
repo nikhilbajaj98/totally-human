@@ -27,6 +27,17 @@ FactoryBot.define do
       response_body do
         { error: true, error_message: "Connection refused" }
       end
+      failure_count { 1 }
+      last_error { "Connection refused" }
+    end
+
+    trait :dead do
+      status { ScrapeJob::STATUS_DEAD }
+      response_body do
+        { error: true, error_message: "All retries exhausted" }
+      end
+      failure_count { ScrapeJob::MAX_RETRIES }
+      last_error { "All retries exhausted" }
     end
   end
 end
