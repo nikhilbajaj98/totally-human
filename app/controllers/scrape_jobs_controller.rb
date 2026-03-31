@@ -54,19 +54,28 @@ class ScrapeJobsController < ApplicationController
     render json: { error: "Job not found" }, status: :not_found
   end
 
-  # List all jobs
+  # List jobs, optionally filtered by status
   # GET /scrape_jobs
+  # GET /scrape_jobs?status=failed
+  # GET /scrape_jobs?status=dead
   def index
-    jobs = ScrapeJob.all.order(created_at: :desc).limit(100)
+    jobs = ScrapeJob.by_status(params[:status]).order(created_at: :desc).limit(100)
 
     render json: jobs.map { |job|
-      {
+      payload = {
         id: job.id.to_s,
         url: job.url,
         status: job.status,
         created_at: job.created_at,
         updated_at: job.updated_at
       }
+
+      if job.status.in?([ ScrapeJob::STATUS_FAILED, ScrapeJob::STATUS_DEAD ])
+        payload[:failure_count] = job.failure_count
+        payload[:last_error] = job.last_error
+      end
+
+      payload
     }
   end
 end

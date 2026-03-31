@@ -96,5 +96,42 @@ RSpec.describe "ScrapeJobs API", type: :request do
       expect(response).to have_http_status(:ok)
       expect(JSON.parse(response.body)).to eq([])
     end
+
+    it "filters by status when status param is provided" do
+      create(:scrape_job, url: "https://good.com", status: "done")
+      create(:scrape_job, url: "https://bad.com", status: "failed", failure_count: 1, last_error: "timeout")
+      create(:scrape_job, url: "https://ok.com", status: "pending")
+
+      get "/scrape_jobs", params: { status: "failed" }
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body.length).to eq(1)
+      expect(body.first["url"]).to eq("https://bad.com")
+      expect(body.first["failure_count"]).to eq(1)
+      expect(body.first["last_error"]).to eq("timeout")
+    end
+
+    it "includes failure_count and last_error for dead jobs" do
+      create(:scrape_job, url: "https://dead.com", status: "dead", failure_count: 5, last_error: "All retries exhausted")
+
+      get "/scrape_jobs", params: { status: "dead" }
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body.length).to eq(1)
+      expect(body.first["failure_count"]).to eq(5)
+      expect(body.first["last_error"]).to include("retries exhausted")
+    end
+
+    it "does not include failure_count for successful jobs" do
+      create(:scrape_job, :done)
+
+      get "/scrape_jobs"
+
+      body = JSON.parse(response.body)
+      expect(body.first).not_to have_key("failure_count")
+      expect(body.first).not_to have_key("last_error")
+    end
   end
 end

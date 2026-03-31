@@ -3,13 +3,23 @@
 require "nokogiri"
 
 module Parsers
+  class RobotDetectedError < StandardError; end
+
   class BaseParser
+    attr_reader :source_url
+
+    def initialize(source_url: nil)
+      @source_url = source_url
+    end
+
     def parse(_html)
       raise NotImplementedError, "#{self.class}#parse must be implemented"
     end
 
     def safe_parse(html)
       parse(html)
+    rescue RobotDetectedError
+      raise
     rescue StandardError, NotImplementedError => e
       Rails.logger.warn("#{self.class}: Parsing failed: #{e.class} - #{e.message}")
       { error: true, error_message: "#{self.class} failed: #{e.message}" }
