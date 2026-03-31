@@ -94,6 +94,118 @@ curl -s http://localhost:3000/scrape_jobs/<id> | jq '.status, .response_body.str
 curl -s http://localhost:3000/scrape_jobs | jq '.[].status'
 ```
 
+## Demo (Phase 9)
+
+Two ways to show the pipeline in under two minutes:
+
+### A. Live scrape batch (`demo:run`)
+
+Requires **`api`**, **`worker`**, **`mask-service`**, **`mongo`**, and **`redis`** up.
+
+```bash
+docker compose up --build -d
+# From the host (same machine as published port 3000):
+docker compose exec api bundle exec rake demo:run
+```
+
+Override the API base if needed (e.g. custom port):
+
+```bash
+docker compose exec -e DEMO_API_URL=http://127.0.0.1:3000 api bundle exec rake demo:run
+```
+
+The task **POSTs** five URLs (Hacker News, Python docs article, Amazon SERP, Amazon PDP, Google SERP), **polls** each job, then prints a **colored summary** (status, **free/premium** strategy, **parser_used**, and a short preview of structured fields). A final block shows **wall time**, **success rate**, and parser/strategy counts.
+
+**Example lines (shape only — live results depend on targets and anti-bot):**
+
+```
+TotallyHuman demo — submitting 5 jobs to http://127.0.0.1:3000
+  enqueued  Hacker News  id=...
+  …
+Hacker News | done | 3.2s | strategy=free | parser=HackerNewsParser | stories=30
+…
+— Summary —
+  Wall time:     18.5s
+  Jobs:          5 (4 done, 1 failed/timeout)
+  Success rate:  80% (of terminal outcomes)
+  Strategies:    {"free"=>3, "premium"=>1}
+  Parsers:       {"HackerNewsParser"=>1, "AmazonSearchParser"=>1, ...}
+```
+
+Some URLs may **fail** or return **robot checks** / empty parsers depending on the live site — that is expected and is useful to explain in interviews.
+
+### B. Instant API browsing (`demo:seed`)
+
+Inserts **completed** jobs with realistic **`parsed_data`** (no worker). **Development only**, unless `ALLOW_DEMO_SEED=true`.
+
+```bash
+docker compose exec api bundle exec rake demo:seed
+curl -s http://localhost:3000/scrape_jobs | jq '.[].parser_used'
+```
+
+Seeded rows have **`demo_seed: true`**; re-run **`demo:seed`** to replace them.
+
+### Grafana after a live demo
+
+![TotallyHuman — Scraping Dashboard in Grafana (scrape rates, free vs premium, cost saved, fallbacks, latency percentiles, premium budget, Sidekiq, range stats, strategy × status)](docs/images/grafana-dashboard.png)
+
+Open **[http://localhost:3001](http://localhost:3001)** (default `admin` / `admin`). After **`demo:run`** or **`demo:load`**, allow ~15s for **Prometheus** to scrape **`/metrics`** before panels move. For a moving demo, use **`demo:load`** (see below) or record **asciinema** / a terminal GIF alongside this dashboard.
+
+Rehearsal bullets: **[INTERVIEW_NOTES.md](INTERVIEW_NOTES.md)**.
+
+### Populate Grafana (many jobs, fast)
+
+Scrape metrics (`totallyhuman_*`) are exported from the **Sidekiq worker**. To make the dashboard look “alive”, enqueue a batch of jobs (rotates URLs across HN, `example.com`, Wikipedia, Google SERP, Amazon SERP/PDP so rate limits spread across domains):
+
+```bash
+docker compose up -d   # api + worker + mask + mongo + redis + prometheus + grafana
+```
+
+**Light load (~60 jobs, default):**
+
+```bash
+docker compose exec api bundle exec rake demo:load
+```
+
+**Heavier load:**
+
+```bash
+docker compose exec -e DEMO_LOAD_COUNT=200 -e DEMO_LOAD_SLEEP_MS=20 api bundle exec rake demo:load
+```
+
+**Maximum burst (watch Amazon rate limits and premium budget):**
+
+```bash
+docker compose exec -e DEMO_LOAD_COUNT=500 -e DEMO_LOAD_SLEEP_MS=0 api bundle exec rake demo:load
+```
+
+Use `DEMO_LOAD_SLEEP_MS=0` only if you want a tight burst; Sidekiq + **RateLimiter** will still serialize per domain.
+
+**Run the full scripted demo five times in a row** (polls each batch — slower, but diverse):
+
+```bash
+for i in 1 2 3 4 5; do docker compose exec api bundle exec rake demo:run; echo "--- round $i done ---"; sleep 3; done
+```
+
+**Plain `curl` loop** (host has port 3000 published):
+
+```bash
+for i in $(seq 1 100); do
+  curl -sS -o /dev/null -X POST http://localhost:3000/scrape_jobs \
+    -H "Content-Type: application/json" \
+    -d '{"url": "https://example.com/"}' || true
+  sleep 0.05
+done
+```
+
+(Adjust URLs to valid ones from your registry; invalid URLs return 422.)
+
+Then open **Grafana** → **TotallyHuman - Scraping Dashboard**. Default time range is **Last 1 hour**. Prometheus scrapes every **15s**, so wait **30–60s** after loading before expecting smooth `rate()` graphs. If you changed `grafana/provisioning/dashboards/totallyhuman.json`, restart Grafana or re-import the dashboard so new panels appear:
+
+```bash
+docker compose up -d --force-recreate grafana
+```
+
 ## API Reference
 
 | Method | Path               | Description                                               |
@@ -214,11 +326,17 @@ totally-human/
 │   ├── Dockerfile                      # Python 3.11-slim
 │   ├── requirements.txt                # fastapi, uvicorn, curl_cffi
 │   └── ruff.toml                       # Python linter config
-├── spec/                               # RSpec test suite (39 specs)
+├── lib/
+│   ├── demo/                           # Phase 9: Demo::Runner, Seeder, Colors
+│   └── tasks/
+│       └── demo.rake                   # demo:run, demo:seed
+├── spec/                               # RSpec test suite
+├── docs/images/                        # README assets (e.g. Grafana screenshot)
 ├── grafana/provisioning/               # Auto-provisioned datasource + dashboard
 ├── prometheus.yml                      # Scrape config (api + worker)
 ├── docker-compose.yml                  # 7 services
 ├── compose.env                         # Environment variables
 ├── ARCHITECTURE.md                     # Mermaid diagrams + phase status
-└── IMPLEMENTATION_PLAN.md              # Phased build plan (Phases 0–9)
+├── INTERVIEW_NOTES.md                  # Architecture & interview scripts
+└── IMPLEMENTATION_PLAN.md              # Phased build plan (Phases 0–10)
 ```
