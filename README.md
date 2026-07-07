@@ -151,8 +151,6 @@ Seeded rows have **`demo_seed: true`**; re-run **`demo:seed`** to replace them.
 
 Open **[http://localhost:3001](http://localhost:3001)** (default `admin` / `admin`). After **`demo:run`** or **`demo:load`**, allow ~15s for **Prometheus** to scrape **`/metrics`** before panels move. For a moving demo, use **`demo:load`** (see below) or record **asciinema** / a terminal GIF alongside this dashboard.
 
-Rehearsal bullets: **[INTERVIEW_NOTES.md](INTERVIEW_NOTES.md)**.
-
 ### Populate Grafana (many jobs, fast)
 
 Scrape metrics (`totallyhuman_*`) are exported from the **Sidekiq worker**. To make the dashboard look “alive”, enqueue a batch of jobs (rotates URLs across HN, `example.com`, Wikipedia, Google SERP, Amazon SERP/PDP so rate limits spread across domains):
